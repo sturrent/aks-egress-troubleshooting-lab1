@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # script name: aks-lab.sh
-# Version v0.0.2 20240504
+# Version v0.0.3 20240504
 # Set of tools to deploy AKS troubleshooting labs
 
 # "-l|--lab" Lab scenario to deploy
@@ -65,7 +65,7 @@ done
 # Variable definition
 SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )"
 SCRIPT_NAME="$(echo "$0" | sed 's|\.\/||g')"
-SCRIPT_VERSION="Version v0.0.2 20240604"
+SCRIPT_VERSION="Version v0.0.3 20240604"
 
 # Funtion definition
 
@@ -159,8 +159,8 @@ echo -e '"-l|--lab" Lab scenario to deploy (3 possible options)
 
 # Lab scenario 1
 function lab_scenario_1 () {
-    RMD_SEED="$(cat /dev/urandom | tr -dc '0-9' | fold -w 2 | head -n 1)"
-    PG_NAME="postgresdb${RMD_SEED}-${USER_ALIAS}.private.postgres.database.azure.com"
+    #RMD_SEED="$(cat /dev/urandom | tr -dc '0-9' | fold -w 2 | head -n 1)"
+    PG_NAME="postgresdb-${USER_ALIAS}.private.postgres.database.azure.com"
     DB_CLUSTER_NAME=postgresdb1-workbench
     RESOURCE_GROUP_DB=workgroup-db-rg
     VNET_NAME_DB=vnet-workgroup-db
@@ -186,13 +186,21 @@ function lab_scenario_1 () {
 
     # create private dns zone
     az network private-dns zone create -g $RESOURCE_GROUP_DB -n "$PG_NAME" -o table
-    PRIVATE_DNS_ZONE_ID=$(az network private-dns zone list -g $RESOURCE_GROUP_DB --query "[].id" -o tsv)
+    PRIVATE_DNS_ZONE_ID=$(az network private-dns zone show -g $RESOURCE_GROUP_DB -n "$PG_NAME" --query "id" -o tsv)
 
     # Create psql server
     az postgres flexible-server create --resource-group $RESOURCE_GROUP_DB --name $DB_CLUSTER_NAME --location "$LOCATION" \
     --admin-user admindb --admin-password "T3mp0r4l" \
     --sku-name Standard_B1ms --tier Burstable \
     --subnet "$DB_SUBNET_ID" --private-dns-zone "$PRIVATE_DNS_ZONE_ID" -o table
+
+    # validate postgres server exist
+    DB_CLUSTER_EXIST=$(az postgres flexible-server show -g "$RESOURCE_GROUP_DB" -n "$DB_CLUSTER_NAME" &>/dev/null; echo $?)
+    if [ "$DB_CLUSTER_EXIST" -ne 0 ]
+    then
+        echo -e "\n--> ERROR: Failed to create Postgres server $DB_CLUSTER_NAME in resource group $RESOURCE_GROUP_DB \nDelete and recreate the lab\n"
+        exit 6
+    fi
 
     # Create AKS cluster
     echo -e "\n--> Deploying cluster for lab${LAB_SCENARIO}...\n"
