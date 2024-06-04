@@ -1,19 +1,19 @@
 #!/bin/bash
 
 # script name: aks-lab.sh
-# Version v0.0.1 20240503
+# Version v0.0.2 20240504
 # Set of tools to deploy AKS troubleshooting labs
 
 # "-l|--lab" Lab scenario to deploy
 # "-r|--region" region to deploy the resources
 # "-s|--sku" nodes SKU
 # "-u|--user" User alias to add on the lab name
-# "-v|--validate" validate resolution
+# "-d|--delete" delete setup
 # "-h|--help" help info
 # "--version" print version
 
 # read the options
-TEMP=$(getopt -o g:n:l:r:s:u:h --long resource-group:,name:,lab:,region:,sku:,user:,help,version -n 'aks-flp-networking.sh' -- "$@")
+TEMP=$(getopt -o g:n:l:r:s:u:dh --long resource-group:,name:,lab:,region:,sku:,user:,help,delete,version -n 'aks-flp-networking.sh' -- "$@")
 eval set -- "$TEMP"
 
 # set an initial value for the flags
@@ -23,7 +23,7 @@ LAB_SCENARIO=""
 USER_ALIAS=""
 LOCATION="eastus2"
 SKU="Standard_D2s_v5"
-VALIDATE=0
+DELETE=0
 HELP=0
 VERSION=0
 
@@ -55,6 +55,7 @@ do
             "") shift 2;;
             *) USER_ALIAS="$2"; shift 2;;
             esac;;    
+        -d|--delete) DELETE=1; shift;;
         --version) VERSION=1; shift;;
         --) shift ; break ;;
         *) echo -e "Error: invalid argument\n" ; exit 3 ;;
@@ -64,7 +65,7 @@ done
 # Variable definition
 SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )"
 SCRIPT_NAME="$(echo "$0" | sed 's|\.\/||g')"
-SCRIPT_VERSION="Version v0.0.1 20240603"
+SCRIPT_VERSION="Version v0.0.2 20240604"
 
 # Funtion definition
 
@@ -352,8 +353,14 @@ EOF
     echo -e "Cluster uri == ${CLUSTER_URI}\n"
 }
 
-function lab_scenario_1_validation () {
-    echo -e "\n--> Validating resolution for lab${LAB_SCENARIO}...\n"
+function lab_scenario_1_delete () {
+    RESOURCE_GROUP_DB=workgroup-db-rg
+    RESOURCE_GROUP=aks-work1-rg
+
+    echo -e "\n--> Deleting setup for lab${LAB_SCENARIO}...\n"
+    az_login_check
+    az group delete -n "$RESOURCE_GROUP_DB" -y -o table --no-wait
+    az group delete -n "$RESOURCE_GROUP" -y -o table --no-wait
 }
 
 #if -h | --help option is selected usage will be displayed
@@ -400,9 +407,12 @@ Verifing if you are authenticated already...\n"
 # Verify az cli has been authenticated
 az_login_check
 
-if [ "$LAB_SCENARIO" -eq 1 ] && [ "$VALIDATE" -eq 0 ]
+if [ "$LAB_SCENARIO" -eq 1 ] && [ "$DELETE" -eq 0 ]
 then
     lab_scenario_1
+elif [ "$LAB_SCENARIO" -eq 1 ] && [ "$DELETE" -eq 1 ]
+then
+    lab_scenario_1_delete
 else
     echo -e "\n--> Error: no valid option provided\n"
     exit 12
